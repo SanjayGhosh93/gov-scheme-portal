@@ -25,7 +25,7 @@ export default function App() {
 
   // Fetch schemes from MongoDB backend on load
   useEffect(() => {
-    fetch('http://localhost:5000/api/schemes')
+    fetch('https://gov-scheme-portal.onrender.com/api/schemes')
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setSchemes(data);
@@ -37,7 +37,7 @@ export default function App() {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      fetch('http://localhost:5000/api/auth/favourites', {
+      fetch('https://gov-scheme-portal.onrender.com/api/auth/favourites', {
         headers: { Authorization: `Bearer ${token}` }
       })
         .then(res => res.json())
@@ -60,7 +60,7 @@ export default function App() {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/favourites/toggle', {
+      const response = await fetch('https://gov-scheme-portal.onrender.com/api/auth/favourites/toggle', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
