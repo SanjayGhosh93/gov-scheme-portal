@@ -1,0 +1,10 @@
+/* App-specific custom styling overrides if needed */
+#root {
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
