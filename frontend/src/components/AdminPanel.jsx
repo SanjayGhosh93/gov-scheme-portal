@@ -53,7 +53,7 @@ export default function AdminPanel({ schemes, setSchemes, darkMode }) {
   const [users, setUsers] = useState([]);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/auth/users')
+    fetch('https://gov-scheme-portal.onrender.com/api/auth/users')
       .then(res => res.json())
       .then(data => { if (Array.isArray(data)) setUsers(data); })
       .catch(err => console.error('Error fetching users:', err));
@@ -74,7 +74,7 @@ export default function AdminPanel({ schemes, setSchemes, darkMode }) {
     };
 
     try {
-      const response = await fetch('http://localhost:5000/api/schemes', {
+      const response = await fetch('https://gov-scheme-portal.onrender.com/api/schemes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(schemeData)
@@ -94,7 +94,7 @@ export default function AdminPanel({ schemes, setSchemes, darkMode }) {
 
   const handleDeleteScheme = async (id) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/schemes/${id}`, {
+      const res = await fetch(`https://gov-scheme-portal.onrender.com/api/schemes/${id}`, {
         method: 'DELETE'
       });
       if (res.ok) {

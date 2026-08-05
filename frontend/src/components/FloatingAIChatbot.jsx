@@ -67,7 +67,7 @@ export default function FloatingAIChatbot() {
 
     try {
       // Connects directly to your backend AI route
-      const response = await fetch('http://localhost:5000/api/ai/chat', {
+      const response = await fetch('https://gov-scheme-portal.onrender.com/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: query })

@@ -24,7 +24,7 @@ export default function AuthModal({ onClose, setUser }) {
 
     try {
       if (view === 'forgot') {
-        const res = await fetch('http://localhost:5000/api/auth/forgot-password', {
+        const res = await fetch('https://gov-scheme-portal.onrender.com/api/auth/forgot-password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, newPassword })
@@ -37,7 +37,7 @@ export default function AuthModal({ onClose, setUser }) {
         return;
       }
 
-      const endpoint = view === 'register' ? 'http://localhost:5000/api/auth/register' : 'http://localhost:5000/api/auth/login';
+      const endpoint = view === 'register' ? 'https://gov-scheme-portal.onrender.com/api/auth/register' : 'https://gov-scheme-portal.onrender.com/api/auth/login';
       const payload = view === 'register' ? { name: fullName, email, password } : { email, password };
 
       const response = await fetch(endpoint, {
@@ -73,7 +73,7 @@ export default function AuthModal({ onClose, setUser }) {
         });
         const googleUser = await res.json();
 
-        const backendRes = await fetch('http://localhost:5000/api/auth/social', {
+        const backendRes = await fetch('https://gov-scheme-portal.onrender.com/api/auth/social', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: googleUser.name, email: googleUser.email, provider: 'Google' })
@@ -119,7 +119,7 @@ export default function AuthModal({ onClose, setUser }) {
           const graphRes = await fetch(`https://graph.facebook.com/me?fields=id,name,email&access_token=${accessToken}`);
           const fbUser = await graphRes.json();
 
-          const backendRes = await fetch('http://localhost:5000/api/auth/social', {
+          const backendRes = await fetch('https://gov-scheme-portal.onrender.com/api/auth/social', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
