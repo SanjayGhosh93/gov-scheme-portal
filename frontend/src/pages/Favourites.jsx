@@ -1,7 +1,9 @@
-import React from 'react';
 import SchemeCard from '../components/SchemeCard';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Favourites({ favourites, schemes = [], onToggleFavourite, setActiveTab, darkMode }) {
+  const { t } = useLanguage();
+
   // Safely map favourites whether they are stored as full objects or IDs/strings
   const favouriteSchemes = favourites.map(fav => {
     if (typeof fav === 'string' || typeof fav === 'number') {
@@ -13,9 +15,9 @@ export default function Favourites({ favourites, schemes = [], onToggleFavourite
   return (
     <div className="max-w-7xl mx-auto px-6 py-12 w-full">
       <div className="flex items-center space-x-3 mb-8">
-        <h1 className={`text-3xl font-extrabold ${darkMode ? 'text-white' : 'text-gray-900'}`}>💖 Your Favourites</h1>
+        <h1 className={`text-3xl font-extrabold ${darkMode ? 'text-white' : 'text-gray-900'}`}>💖 {t('yourFavourites')}</h1>
         <span className="bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
-          {favouriteSchemes.length} saved
+          {favouriteSchemes.length} {t('savedSuffix')}
         </span>
       </div>
 
@@ -26,13 +28,14 @@ export default function Favourites({ favourites, schemes = [], onToggleFavourite
           <div className={`w-16 h-16 rounded-3xl border flex items-center justify-center text-2xl mx-auto mb-4 ${
             darkMode ? 'bg-gray-900 border-gray-800' : 'bg-gray-100 border-gray-200'
           }`}>💔</div>
-          <h3 className="text-lg font-bold mb-2">No favourite schemes yet</h3>
-          <p className="text-xs text-gray-400 mb-6 leading-relaxed">Explore the schemes directory and tap the heart icon on any scheme to save it here for quick access.</p>
+          <h3 className="text-lg font-bold mb-2">{t('noFavouritesTitle')}</h3>
+          <p className="text-xs text-gray-400 mb-6 leading-relaxed">{t('noFavouritesDesc')}</p>
           <button 
+            type="button"
             onClick={() => setActiveTab('schemes')}
-            className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-xl font-semibold text-xs transition shadow-lg"
+            className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-xl font-semibold text-xs transition shadow-lg cursor-pointer"
           >
-            Explore Schemes →
+            {t('exploreSchemesBtn')}
           </button>
         </div>
       ) : (

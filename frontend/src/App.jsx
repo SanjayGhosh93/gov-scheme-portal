@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import AuthModal from './components/AuthModal';
@@ -10,43 +10,79 @@ import EligibilityChecker from './pages/EligibilityChecker';
 import Favourites from './pages/Favourites';
 import AdminPanel from './components/AdminPanel';
 
+import { API_BASE } from './utils/apiConfig';
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [darkMode, setDarkMode] = useState(true);
   
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedState, setSelectedState] = useState('All India');
 
-  // Dynamic state loaded from MongoDB backend
+  // Live MongoDB state fetched exclusively from Render backend
   const [schemes, setSchemes] = useState([]);
   const [favourites, setFavourites] = useState([]);
 
-  // Fetch schemes from MongoDB backend on load
+  // Fetch schemes directly from Render MongoDB backend
   useEffect(() => {
-    fetch('https://gov-scheme-portal.onrender.com/api/schemes')
-      .then(res => res.json())
+    let isMounted = true;
+    fetch(`${API_BASE}/api/schemes`)
+      .then(res => res.ok ? res.json() : [])
       .then(data => {
-        if (Array.isArray(data)) setSchemes(data);
+        if (isMounted && Array.isArray(data)) {
+          setSchemes(data);
+        }
       })
-      .catch(err => console.error('Failed to fetch schemes from backend:', err));
+      .catch(err => console.error('Render MongoDB schemes fetch error:', err));
+    return () => { isMounted = false; };
+  }, []);
+
+  // Verify and refresh logged-in user profile from MongoDB
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`${API_BASE}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.name && data.email) {
+            const updatedUser = {
+              fullName: data.name,
+              email: data.email,
+              role: data.role || 'user'
+            };
+            setUser(updatedUser);
+            localStorage.setItem('user', JSON.stringify(updatedUser));
+          }
+        })
+        .catch(err => {
+          console.warn('User profile MongoDB sync notice:', err);
+        });
+    }
   }, []);
 
   // Fetch logged-in user's saved favourites from MongoDB database
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) {
-      fetch('https://gov-scheme-portal.onrender.com/api/auth/favourites', {
+    if (token && user) {
+      fetch(`${API_BASE}/api/auth/favourites`, {
         headers: { Authorization: `Bearer ${token}` }
       })
         .then(res => res.json())
         .then(data => {
           if (Array.isArray(data)) setFavourites(data);
         })
-        .catch(err => console.error('Failed to fetch user favourites:', err));
-    } else {
-      setFavourites([]); // Clear favourites view on logout
+        .catch(err => console.error('Failed to fetch user favourites from MongoDB:', err));
     }
   }, [user]);
 
@@ -59,22 +95,25 @@ export default function App() {
       return;
     }
 
+    const schemeId = scheme._id || scheme.id;
     try {
-      const response = await fetch('https://gov-scheme-portal.onrender.com/api/auth/favourites/toggle', {
+      const response = await fetch(`${API_BASE}/api/auth/favourites/toggle`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ schemeId: scheme._id })
+        body: JSON.stringify({ schemeId })
       });
 
-      const updatedFavourites = await response.json();
       if (response.ok) {
-        setFavourites(updatedFavourites);
+        const updatedFavourites = await response.json();
+        if (Array.isArray(updatedFavourites)) {
+          setFavourites(updatedFavourites);
+        }
       }
     } catch (err) {
-      console.error('Failed to update favorite in database:', err);
+      console.error('Failed to toggle favourite in MongoDB:', err);
     }
   };
 
@@ -88,7 +127,13 @@ export default function App() {
           setActiveTab={setActiveTab} 
           onOpenAuth={() => setIsAuthOpen(true)} 
           user={user} 
-          setUser={setUser} 
+          setUser={(newUser) => {
+            setUser(newUser);
+            if (!newUser) {
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+            }
+          }} 
           darkMode={darkMode}
           setDarkMode={setDarkMode}
         />
@@ -131,13 +176,22 @@ export default function App() {
         {activeTab === 'favourites' && (
           <Favourites 
             favourites={favourites} 
+            schemes={schemes}
             onToggleFavourite={toggleFavourite} 
             setActiveTab={setActiveTab} 
             darkMode={darkMode}
           />
         )}
 
-        {activeTab === 'admin' && <AdminPanel schemes={schemes} setSchemes={setSchemes} darkMode={darkMode} />}
+        {activeTab === 'admin' && (
+          <AdminPanel 
+            schemes={schemes} 
+            setSchemes={setSchemes} 
+            user={user}
+            setUser={setUser}
+            darkMode={darkMode} 
+          />
+        )}
       </div>
 
       {isAuthOpen && (
@@ -149,7 +203,7 @@ export default function App() {
         />
       )}
       
-      <FloatingAIChatbot darkMode={darkMode} />
+      <FloatingAIChatbot schemes={schemes} darkMode={darkMode} />
 
       <Footer setActiveTab={setActiveTab} darkMode={darkMode} />
     </div>

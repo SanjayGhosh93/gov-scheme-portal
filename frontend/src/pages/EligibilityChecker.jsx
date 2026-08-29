@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import SchemeCard from '../components/SchemeCard';
+import { useLanguage } from '../context/LanguageContext';
 
 const indianStates = [
   "All India",
@@ -41,9 +42,10 @@ const indianStates = [
   "West Bengal"
 ];
 
-const categories = ['All Categories', 'Education', 'Health', 'Agriculture', 'Women', 'Senior Citizens', 'Students', 'Employment', 'Housing'];
+const rawCategories = ['All Categories', 'Education', 'Health', 'Agriculture', 'Women', 'Senior Citizens', 'Students', 'Employment', 'Housing'];
 
 export default function EligibilityChecker({ schemes = [], favourites = [], onToggleFavourite, darkMode }) {
+  const { t } = useLanguage();
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [selectedState, setSelectedState] = useState('All India');
   const [income, setIncome] = useState('');
@@ -62,13 +64,9 @@ export default function EligibilityChecker({ schemes = [], favourites = [], onTo
       const schemeState = scheme.state?.trim().toLowerCase() || 'all india';
       const chosenState = selectedState.trim().toLowerCase();
 
-      let matchesState = false;
-      if (chosenState === 'all india') {
-        matchesState = schemeState === 'all india' || schemeState === 'central' || schemeState === '' || schemeState.includes('all');
-      } else {
-        // Strict match: ONLY show schemes belonging to this specific state
-        matchesState = schemeState === chosenState || schemeState.includes(chosenState);
-      }
+      const matchesState = chosenState === 'all india'
+        ? (schemeState === 'all india' || schemeState === 'central' || schemeState === '' || schemeState.includes('all'))
+        : (schemeState === chosenState || schemeState.includes(chosenState));
 
       return matchesCategory && matchesState;
     });
@@ -85,9 +83,9 @@ export default function EligibilityChecker({ schemes = [], favourites = [], onTo
       }`}>
         <div className="mb-8">
           <h1 className="text-2xl md:text-3xl font-extrabold mb-2 flex items-center gap-3">
-            <span>🔍</span> Scheme Eligibility Checker
+            <span>🔍</span> {t('searchTitle')}
           </h1>
-          <p className="text-xs text-gray-400">Enter your details below to find government schemes you qualify for from your database.</p>
+          <p className="text-xs text-gray-400">{t('searchSubtitle')}</p>
         </div>
 
         <form onSubmit={handleCheckEligibility} className="space-y-6">
@@ -95,32 +93,32 @@ export default function EligibilityChecker({ schemes = [], favourites = [], onTo
             
             {/* Category Select */}
             <div className="space-y-2">
-              <label className="text-[10px] uppercase tracking-wider text-gray-400 font-bold block">Select Category</label>
+              <label className="text-[10px] uppercase tracking-wider text-gray-400 font-bold block">{t('selectCategory')}</label>
               <select 
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className={`w-full p-3.5 rounded-xl border text-xs focus:outline-none focus:border-orange-500 ${
+                className={`w-full p-3.5 rounded-xl border text-xs focus:outline-none focus:border-orange-500 cursor-pointer ${
                   darkMode ? 'bg-gray-900 border-gray-800 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'
                 }`}
               >
-                {categories.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
+                {rawCategories.map(cat => (
+                  <option key={cat} value={cat}>{t(cat) || cat}</option>
                 ))}
               </select>
             </div>
 
             {/* State Select Dropdown with All Indian States */}
             <div className="space-y-2">
-              <label className="text-[10px] uppercase tracking-wider text-gray-400 font-bold block">Select State</label>
+              <label className="text-[10px] uppercase tracking-wider text-gray-400 font-bold block">{t('selectState')}</label>
               <select 
                 value={selectedState}
                 onChange={(e) => setSelectedState(e.target.value)}
-                className={`w-full p-3.5 rounded-xl border text-xs focus:outline-none focus:border-orange-500 ${
+                className={`w-full p-3.5 rounded-xl border text-xs focus:outline-none focus:border-orange-500 cursor-pointer ${
                   darkMode ? 'bg-gray-900 border-gray-800 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'
                 }`}
               >
                 {indianStates.map(st => (
-                  <option key={st} value={st}>{st === 'All India' ? 'All India (Central Schemes)' : st}</option>
+                  <option key={st} value={st}>{st === 'All India' ? `All India (${t('allSchemes') || 'Central Schemes'})` : st}</option>
                 ))}
               </select>
             </div>
@@ -129,10 +127,10 @@ export default function EligibilityChecker({ schemes = [], favourites = [], onTo
 
           {/* Income Input */}
           <div className="space-y-2">
-            <label className="text-[10px] uppercase tracking-wider text-gray-400 font-bold block">Annual Family Income (₹)</label>
+            <label className="text-[10px] uppercase tracking-wider text-gray-400 font-bold block">{t('annualIncome')}</label>
             <input 
               type="number" 
-              placeholder="e.g. 250000" 
+              placeholder={t('incomePlaceholder')} 
               value={income}
               onChange={(e) => setIncome(e.target.value)}
               className={`w-full p-3.5 rounded-xl border text-xs focus:outline-none focus:border-orange-500 ${
@@ -143,9 +141,9 @@ export default function EligibilityChecker({ schemes = [], favourites = [], onTo
 
           <button 
             type="submit"
-            className="w-full py-4 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl text-xs transition shadow-lg tracking-wide uppercase"
+            className="w-full py-4 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl text-xs transition shadow-lg tracking-wide uppercase cursor-pointer"
           >
-            Check Eligible Schemes
+            {t('checkEligibleSchemes')}
           </button>
         </form>
       </div>
@@ -154,13 +152,13 @@ export default function EligibilityChecker({ schemes = [], favourites = [], onTo
       {results !== null && (
         <div className="space-y-6">
           <div className="flex justify-between items-center pb-2 border-b border-gray-800">
-            <h3 className="text-xl font-bold text-white">Matching Schemes Found ({results.length})</h3>
-            <span className="text-xs text-gray-400">Category: {selectedCategory} • State: {selectedState}</span>
+            <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{t('matchingFound')} ({results.length})</h3>
+            <span className="text-xs text-gray-400">{t('categoryLabel')}: {t(selectedCategory) || selectedCategory} • {t('stateLabel')}: {selectedState}</span>
           </div>
 
           {results.length === 0 ? (
-            <div className={`p-12 text-center rounded-3xl border ${darkMode ? 'bg-[#121824] border-gray-800 text-white' : 'bg-white border-gray-200'}`}>
-              <p className="text-gray-400 text-sm">No schemes found specifically for {selectedState}. Try adding state schemes via the Admin Panel.</p>
+            <div className={`p-12 text-center rounded-3xl border ${darkMode ? 'bg-[#121824] border-gray-800 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
+              <p className="text-gray-400 text-sm">{t('noEligibilityResults')}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -1,4 +1,3 @@
-import React, { useState } from 'react';
 
 const states = [
   'J&K', 'Himachal', 'Punjab', 'Uttarakhand',

@@ -1,4 +1,3 @@
-import React from 'react';
 
 const categories = [
   { name: 'Education', count: '324 schemes', icon: '🎓', color: 'bg-purple-600/20 text-purple-400 border-purple-500/30' },
