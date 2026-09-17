@@ -92,13 +92,16 @@ export default function Navbar({
           <button
             key={tab}
             onClick={() => handleNavClick(tab)}
-            className={`px-4 lg:px-5 py-2 rounded-full text-xs lg:text-sm font-semibold transition-all capitalize cursor-pointer ${
+            className={`px-4 lg:px-5 py-2 rounded-full text-xs lg:text-sm font-semibold transition-all capitalize cursor-pointer flex items-center gap-1.5 ${
               activeTab === tab 
                 ? (darkMode ? 'bg-white text-gray-950 shadow-md font-bold' : 'bg-gray-900 text-white shadow-md font-bold')
                 : (darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900')
             }`}
           >
-            {t(tab) || (tab.charAt(0).toUpperCase() + tab.slice(1))}
+            <span>{t(tab) || (tab.charAt(0).toUpperCase() + tab.slice(1))}</span>
+            {!user && tab !== 'home' && (
+              <span className="text-[11px] opacity-70" title="Sign In Required">🔒</span>
+            )}
           </button>
         ))}
       </div>
@@ -282,13 +285,16 @@ export default function Navbar({
                 key={tab}
                 type="button"
                 onClick={() => handleNavClick(tab)}
-                className={`py-2.5 px-4 rounded-xl text-xs font-semibold capitalize text-center cursor-pointer ${
+                className={`py-2.5 px-4 rounded-xl text-xs font-semibold capitalize text-center cursor-pointer flex items-center justify-center gap-1.5 ${
                   activeTab === tab 
                     ? 'bg-orange-500 text-white' 
                     : (darkMode ? 'bg-gray-900 text-gray-300' : 'bg-gray-100 text-gray-700')
                 }`}
               >
-                {t(tab) || (tab.charAt(0).toUpperCase() + tab.slice(1))}
+                <span>{t(tab) || (tab.charAt(0).toUpperCase() + tab.slice(1))}</span>
+                {!user && tab !== 'home' && (
+                  <span className="text-[10px] opacity-70">🔒</span>
+                )}
               </button>
             ))}
             <button

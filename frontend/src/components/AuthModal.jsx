@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useGoogleLogin } from '@react-oauth/google';
 import { API_BASE } from '../utils/apiConfig';
 
-export default function AuthModal({ onClose, setUser }) {
+export default function AuthModal({ onClose, setUser, promptMessage }) {
   const [view, setView] = useState('login'); // 'login' | 'register' | 'forgot' | 'admin'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -223,11 +223,11 @@ export default function AuthModal({ onClose, setUser }) {
           return;
         }
 
-        // Demo Admin Default
-        if (cleanEmail === 'admin@schemesaathi.com' && password === 'admin123') {
+        // Offline Fallback for Fixed Super Admin only
+        if (cleanEmail === 'ghosh@gmail.com' && password === 'Sanjay@9382') {
           const demoAdmin = {
-            fullName: 'System Administrator',
-            email: 'admin@schemesaathi.com',
+            fullName: 'Sanjay Ghosh (Admin)',
+            email: 'ghosh@gmail.com',
             role: 'admin'
           };
           localStorage.setItem('token', 'admin_session_' + Date.now());
@@ -407,6 +407,13 @@ export default function AuthModal({ onClose, setUser }) {
             : 'Access national welfare schemes • Synced with MongoDB Atlas'}
         </p>
 
+        {promptMessage && (
+          <div className="mb-5 p-3.5 bg-orange-500/15 border border-orange-500/40 text-orange-300 text-xs rounded-2xl flex items-center gap-2.5 shadow-sm animate-fadeIn">
+            <span className="text-base flex-shrink-0">🔒</span>
+            <span className="font-semibold leading-relaxed">{promptMessage}</span>
+          </div>
+        )}
+
         {error && (
           <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 text-red-400 text-xs rounded-xl flex items-center gap-2">
             <span>⚠️</span>
@@ -486,7 +493,7 @@ export default function AuthModal({ onClose, setUser }) {
             </label>
             <input 
               type="email" 
-              placeholder={view === 'admin' ? "admin@schemesaathi.com" : "name@example.com"} 
+              placeholder={view === 'admin' ? "ghosh@gmail.com" : "name@example.com"} 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
@@ -611,7 +618,7 @@ export default function AuthModal({ onClose, setUser }) {
           )}
           {view === 'admin' && (
             <p className="text-xs text-gray-400">
-              Default Admin: <span className="text-orange-400 font-mono">admin@schemesaathi.com / admin123</span>
+              Restricted to authorized administrator (<span className="text-orange-400 font-mono">ghosh@gmail.com</span>)
             </p>
           )}
         </div>

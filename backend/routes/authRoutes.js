@@ -21,7 +21,8 @@ export const verifyToken = (req, res, next) => {
 // Middleware to verify Admin role
 export const verifyAdmin = (req, res, next) => {
   verifyToken(req, res, () => {
-    if (req.user && req.user.role === 'admin') {
+    const authorizedAdminEmail = (process.env.DEFAULT_ADMIN_EMAIL || 'ghosh@gmail.com').toLowerCase().trim();
+    if (req.user && req.user.role === 'admin' && (!req.user.email || req.user.email.toLowerCase().trim() === authorizedAdminEmail)) {
       next();
     } else {
       res.status(403).json({ error: 'Access denied. Administrator privileges required.' });
@@ -29,21 +30,40 @@ export const verifyAdmin = (req, res, next) => {
   });
 };
 
-// Auto-seed default Admin on startup if none exists
+// Auto-seed default Admin on startup and enforce fixed admin credentials
 export const initDefaultAdmin = async () => {
   try {
-    const adminEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@schemesaathi.com';
-    const existingAdmin = await User.findOne({ email: adminEmail });
+    const adminEmail = (process.env.DEFAULT_ADMIN_EMAIL || 'ghosh@gmail.com').toLowerCase().trim();
+    const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'Sanjay@9382';
+    const hashedPassword = await bcrypt.hash(adminPassword, 10);
+
+    let existingAdmin = await User.findOne({ email: adminEmail });
     if (!existingAdmin) {
-      const hashedPassword = await bcrypt.hash(process.env.DEFAULT_ADMIN_PASSWORD || 'admin123', 10);
       await User.create({
-        name: 'System Administrator',
+        name: 'Sanjay Ghosh (Admin)',
         email: adminEmail,
         password: hashedPassword,
-        role: 'admin'
+        role: 'admin',
+        adminStatus: 'approved'
       });
-      console.log(`[AUTH] Default Admin created: ${adminEmail}`);
+      console.log(`[AUTH] Fixed Super Admin created: ${adminEmail}`);
+    } else {
+      existingAdmin.name = 'Sanjay Ghosh (Admin)';
+      existingAdmin.password = hashedPassword;
+      existingAdmin.role = 'admin';
+      existingAdmin.adminStatus = 'approved';
+      await existingAdmin.save();
+      console.log(`[AUTH] Fixed Super Admin credentials synchronized: ${adminEmail}`);
     }
+
+    // Remove legacy demo admin if present
+    await User.deleteOne({ email: 'admin@schemesaathi.com' });
+
+    // Revoke admin rights from all other users so only ghosh@gmail.com has admin access
+    await User.updateMany(
+      { email: { $ne: adminEmail }, role: 'admin' },
+      { $set: { role: 'user', adminStatus: 'none' } }
+    );
   } catch (err) {
     console.error('[AUTH] Failed to initialize default admin:', err.message);
   }
@@ -65,8 +85,8 @@ router.get('/me', verifyToken, async (req, res) => {
   }
 });
 
-// Get All Users (For Admin Panel)
-router.get('/users', async (req, res) => {
+// Get All Users (For Admin Panel - Protected)
+router.get('/users', verifyAdmin, async (req, res) => {
   try {
     const users = await User.find({}, '-password').sort({ createdAt: -1 });
     res.json(users);
@@ -75,8 +95,8 @@ router.get('/users', async (req, res) => {
   }
 });
 
-// Approve user as Admin
-router.put('/users/:id/approve-admin', async (req, res) => {
+// Approve user as Admin (Protected)
+router.put('/users/:id/approve-admin', verifyAdmin, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -89,8 +109,8 @@ router.put('/users/:id/approve-admin', async (req, res) => {
   }
 });
 
-// Reject user Admin request
-router.put('/users/:id/reject-admin', async (req, res) => {
+// Reject user Admin request (Protected)
+router.put('/users/:id/reject-admin', verifyAdmin, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -103,8 +123,8 @@ router.put('/users/:id/reject-admin', async (req, res) => {
   }
 });
 
-// Toggle user role between admin and user
-router.put('/users/:id/toggle-role', async (req, res) => {
+// Toggle user role between admin and user (Protected)
+router.put('/users/:id/toggle-role', verifyAdmin, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -122,8 +142,8 @@ router.put('/users/:id/toggle-role', async (req, res) => {
   }
 });
 
-// Delete user by ID (Admin only)
-router.delete('/users/:id', async (req, res) => {
+// Delete user by ID (Admin only - Protected)
+router.delete('/users/:id', verifyAdmin, async (req, res) => {
   try {
     await User.findByIdAndDelete(req.params.id);
     res.json({ message: 'User deleted successfully' });
@@ -179,7 +199,7 @@ router.post('/login', async (req, res) => {
     if (!isMatch) return res.status(400).json({ message: 'Invalid email or password' });
 
     const token = jwt.sign(
-      { id: user._id, role: user.role }, 
+      { id: user._id, role: user.role, email: user.email }, 
       process.env.JWT_SECRET || 'secretkey', 
       { expiresIn: '7d' }
     );
@@ -199,7 +219,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Dedicated Admin Login (Validates credentials AND admin approval)
+// Dedicated Admin Login (Strictly validates fixed Super Admin credentials)
 router.post('/admin-login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -209,6 +229,15 @@ router.post('/admin-login', async (req, res) => {
     }
 
     const cleanEmail = email.toLowerCase().trim();
+    const authorizedAdminEmail = (process.env.DEFAULT_ADMIN_EMAIL || 'ghosh@gmail.com').toLowerCase().trim();
+
+    // STRICT: Only the designated admin email can authenticate through admin portal
+    if (cleanEmail !== authorizedAdminEmail) {
+      return res.status(403).json({ 
+        message: 'Access denied. Only the authorized administrator account can access the Admin Portal.' 
+      });
+    }
+
     const user = await User.findOne({ email: cleanEmail });
     if (!user) {
       return res.status(400).json({ message: 'Invalid administrator credentials' });
@@ -219,28 +248,14 @@ router.post('/admin-login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid administrator credentials' });
     }
 
-    // Default Super Admin is always approved
-    const isSuperAdmin = cleanEmail === 'admin@schemesaathi.com';
-    const isApprovedAdmin = user.role === 'admin' || user.adminStatus === 'approved' || isSuperAdmin;
-
-    if (!isApprovedAdmin) {
-      if (user.adminStatus === 'pending') {
-        return res.status(403).json({ 
-          message: 'Your admin account request is pending approval by the Super Administrator.' 
-        });
-      }
-      if (user.adminStatus === 'rejected') {
-        return res.status(403).json({ 
-          message: 'Your request for administrator access was rejected by the Super Admin.' 
-        });
-      }
+    if (user.role !== 'admin') {
       return res.status(403).json({ 
-        message: 'Access denied. You need Super Administrator approval to access the Admin Portal.' 
+        message: 'Access denied. Administrator privileges required.' 
       });
     }
 
     const token = jwt.sign(
-      { id: user._id, role: 'admin' }, 
+      { id: user._id, role: 'admin', email: user.email }, 
       process.env.JWT_SECRET || 'secretkey', 
       { expiresIn: '7d' }
     );
@@ -260,57 +275,11 @@ router.post('/admin-login', async (req, res) => {
   }
 });
 
-// Dedicated Admin Registration (Submits request for Super Admin approval)
+// Dedicated Admin Registration (Disabled to protect fixed admin access)
 router.post('/admin-register', async (req, res) => {
-  try {
-    const { name, email, password, secretKey } = req.body;
-    const expectedSecret = process.env.ADMIN_SECRET_KEY || 'schemesaathi_admin_2026';
-
-    if (secretKey !== expectedSecret) {
-      return res.status(403).json({ message: 'Invalid Admin Secret Key. Registration denied.' });
-    }
-
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: 'Please provide all required fields' });
-    }
-
-    const cleanEmail = email.toLowerCase().trim();
-    const isSuperAdmin = cleanEmail === 'admin@schemesaathi.com';
-    const initialRole = isSuperAdmin ? 'admin' : 'user';
-    const initialStatus = isSuperAdmin ? 'approved' : 'pending';
-
-    const existingUser = await User.findOne({ email: cleanEmail });
-    if (existingUser) {
-      const hashedPassword = await bcrypt.hash(password, 10);
-      existingUser.password = hashedPassword;
-      existingUser.role = initialRole;
-      existingUser.adminStatus = initialStatus;
-      await existingUser.save();
-      return res.json({ 
-        message: isSuperAdmin 
-          ? 'Super Admin activated successfully.' 
-          : 'Admin access request submitted! Pending Super Admin approval.' 
-      });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const newAdmin = await User.create({
-      name: name.trim(),
-      email: cleanEmail,
-      password: hashedPassword,
-      role: initialRole,
-      adminStatus: initialStatus
-    });
-
-    res.status(201).json({ 
-      message: isSuperAdmin
-        ? 'Admin account created successfully.'
-        : 'Admin registration request submitted! Pending Super Admin approval.', 
-      userId: newAdmin._id 
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  return res.status(403).json({ 
+    message: 'Administrator registration is disabled. Administrator access is strictly restricted.' 
+  });
 });
 
 // Social Login / Registration Route (Google & Facebook)
@@ -328,12 +297,13 @@ router.post('/social', async (req, res) => {
         name: name || 'User',
         email: email.toLowerCase().trim(),
         password: hashedPassword,
-        role: 'user'
+        role: 'user',
+        adminStatus: 'none'
       });
     }
 
     const token = jwt.sign(
-      { id: user._id, role: user.role }, 
+      { id: user._id, role: user.role, email: user.email }, 
       process.env.JWT_SECRET || 'secretkey', 
       { expiresIn: '7d' }
     );

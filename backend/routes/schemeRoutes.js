@@ -1,5 +1,6 @@
 import express from 'express';
 import Scheme from '../models/Scheme.js';
+import { verifyAdmin } from './authRoutes.js';
 
 const router = express.Router();
 
@@ -31,7 +32,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST Add new scheme to MongoDB Database (Admin)
-router.post('/', async (req, res) => {
+router.post('/', verifyAdmin, async (req, res) => {
   try {
     const { title, category, state, description, amount, users, documentsCount } = req.body;
     
@@ -56,7 +57,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT Update existing scheme in MongoDB (Admin)
-router.put('/:id', async (req, res) => {
+router.put('/:id', verifyAdmin, async (req, res) => {
   try {
     const { title, category, state, description, amount, users, documentsCount } = req.body;
     
@@ -82,7 +83,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE scheme from MongoDB (Admin)
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', verifyAdmin, async (req, res) => {
   try {
     const deleted = await Scheme.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ error: 'Scheme not found in MongoDB' });
@@ -92,8 +93,8 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// POST Bulk insert schemes directly into MongoDB
-router.post('/bulk', async (req, res) => {
+// POST Bulk insert schemes directly into MongoDB (Admin)
+router.post('/bulk', verifyAdmin, async (req, res) => {
   try {
     const schemes = await Scheme.insertMany(req.body);
     res.status(201).json({ message: `${schemes.length} schemes stored in MongoDB successfully!`, schemes });

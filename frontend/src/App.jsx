@@ -9,11 +9,14 @@ import SchemesPage from './pages/SchemesPage';
 import EligibilityChecker from './pages/EligibilityChecker';
 import Favourites from './pages/Favourites';
 import AdminPanel from './components/AdminPanel';
+import SignInRequired from './components/SignInRequired';
 
 import { API_BASE } from './utils/apiConfig';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
+  const [pendingTab, setPendingTab] = useState(null);
+  const [authPromptMessage, setAuthPromptMessage] = useState('');
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [user, setUser] = useState(() => {
     try {
@@ -117,6 +120,65 @@ export default function App() {
     }
   };
 
+  // Access-Gated Navigation: Without signing in, user cannot go to schemes or another section
+  const handleNavigate = (targetTab) => {
+    // Home is public
+    if (targetTab === 'home') {
+      setActiveTab('home');
+      return;
+    }
+
+    // Admin panel tab has its own dedicated login and protection
+    if (targetTab === 'admin') {
+      setActiveTab('admin');
+      return;
+    }
+
+    // Schemes, Eligibility, Favourites and other sections strictly require sign in
+    if (!user) {
+      setPendingTab(targetTab);
+      setAuthPromptMessage(
+        targetTab === 'schemes'
+          ? 'Please sign in to explore and apply for government schemes.'
+          : targetTab === 'eligibility'
+          ? 'Please sign in to check your eligibility for welfare schemes.'
+          : targetTab === 'favourites'
+          ? 'Please sign in to access your saved favourite schemes.'
+          : 'Please sign in to access this section.'
+      );
+      setIsAuthOpen(true);
+      return;
+    }
+
+    setActiveTab(targetTab);
+  };
+
+  // Synchronize user login/logout with navigation & pending tab redirect
+  const handleSetUser = (newUser) => {
+    setUser(newUser);
+    if (!newUser) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setActiveTab('home'); // Redirect back to home on logout
+      setPendingTab(null);
+      setAuthPromptMessage('');
+    } else {
+      if (pendingTab) {
+        setActiveTab(pendingTab); // Automatically redirect to the section they wanted to go to
+        setPendingTab(null);
+      }
+      setAuthPromptMessage('');
+    }
+  };
+
+  const handleCloseAuth = () => {
+    setIsAuthOpen(false);
+    setPendingTab(null);
+    setAuthPromptMessage('');
+  };
+
+
+
   return (
     <div className={`min-h-screen transition-colors duration-300 ${
       darkMode ? 'bg-[#0b0f17] text-white' : 'bg-[#fbf9f5] text-gray-950'
@@ -124,16 +186,13 @@ export default function App() {
       <div>
         <Navbar 
           activeTab={activeTab} 
-          setActiveTab={setActiveTab} 
-          onOpenAuth={() => setIsAuthOpen(true)} 
-          user={user} 
-          setUser={(newUser) => {
-            setUser(newUser);
-            if (!newUser) {
-              localStorage.removeItem('token');
-              localStorage.removeItem('user');
-            }
+          setActiveTab={handleNavigate} 
+          onOpenAuth={() => {
+            setAuthPromptMessage('');
+            setIsAuthOpen(true);
           }} 
+          user={user} 
+          setUser={handleSetUser} 
           darkMode={darkMode}
           setDarkMode={setDarkMode}
         />
@@ -143,7 +202,7 @@ export default function App() {
             schemes={schemes} 
             favourites={favourites} 
             onToggleFavourite={toggleFavourite} 
-            setActiveTab={setActiveTab}
+            setActiveTab={handleNavigate}
             selectedState={selectedState}
             setSelectedState={setSelectedState}
             onSelectCategory={setSelectedCategory}
@@ -152,35 +211,74 @@ export default function App() {
         )}
 
         {activeTab === 'schemes' && (
-          <SchemesPage 
-            schemes={schemes} 
-            favourites={favourites} 
-            onToggleFavourite={toggleFavourite}
-            selectedCategory={selectedCategory}
-            setSelectedCategory={setSelectedCategory}
-            selectedState={selectedState}
-            setSelectedState={setSelectedState}
-            darkMode={darkMode}
-          />
+          user ? (
+            <SchemesPage 
+              schemes={schemes} 
+              favourites={favourites} 
+              onToggleFavourite={toggleFavourite}
+              selectedCategory={selectedCategory}
+              setSelectedCategory={setSelectedCategory}
+              selectedState={selectedState}
+              setSelectedState={setSelectedState}
+              darkMode={darkMode}
+            />
+          ) : (
+            <SignInRequired 
+              targetTab="schemes"
+              onSignIn={() => {
+                setPendingTab('schemes');
+                setAuthPromptMessage('Please sign in to explore and apply for government schemes.');
+                setIsAuthOpen(true);
+              }}
+              onBackHome={() => setActiveTab('home')}
+              darkMode={darkMode}
+            />
+          )
         )}
 
         {activeTab === 'eligibility' && (
-          <EligibilityChecker 
-            schemes={schemes} 
-            favourites={favourites} 
-            onToggleFavourite={toggleFavourite} 
-            darkMode={darkMode} 
-          />
+          user ? (
+            <EligibilityChecker 
+              schemes={schemes} 
+              favourites={favourites} 
+              onToggleFavourite={toggleFavourite} 
+              darkMode={darkMode} 
+            />
+          ) : (
+            <SignInRequired 
+              targetTab="eligibility"
+              onSignIn={() => {
+                setPendingTab('eligibility');
+                setAuthPromptMessage('Please sign in to check your eligibility for welfare schemes.');
+                setIsAuthOpen(true);
+              }}
+              onBackHome={() => setActiveTab('home')}
+              darkMode={darkMode}
+            />
+          )
         )}
 
         {activeTab === 'favourites' && (
-          <Favourites 
-            favourites={favourites} 
-            schemes={schemes}
-            onToggleFavourite={toggleFavourite} 
-            setActiveTab={setActiveTab} 
-            darkMode={darkMode}
-          />
+          user ? (
+            <Favourites 
+              favourites={favourites} 
+              schemes={schemes}
+              onToggleFavourite={toggleFavourite} 
+              setActiveTab={handleNavigate} 
+              darkMode={darkMode}
+            />
+          ) : (
+            <SignInRequired 
+              targetTab="favourites"
+              onSignIn={() => {
+                setPendingTab('favourites');
+                setAuthPromptMessage('Please sign in to access your saved favourite schemes.');
+                setIsAuthOpen(true);
+              }}
+              onBackHome={() => setActiveTab('home')}
+              darkMode={darkMode}
+            />
+          )
         )}
 
         {activeTab === 'admin' && (
@@ -188,7 +286,7 @@ export default function App() {
             schemes={schemes} 
             setSchemes={setSchemes} 
             user={user}
-            setUser={setUser}
+            setUser={handleSetUser}
             darkMode={darkMode} 
           />
         )}
@@ -196,16 +294,21 @@ export default function App() {
 
       {isAuthOpen && (
         <AuthModal 
-          onClose={() => setIsAuthOpen(false)} 
+          onClose={handleCloseAuth} 
           user={user} 
-          setUser={setUser} 
+          setUser={handleSetUser} 
+          promptMessage={authPromptMessage}
           darkMode={darkMode} 
         />
       )}
       
       <FloatingAIChatbot schemes={schemes} darkMode={darkMode} />
 
-      <Footer setActiveTab={setActiveTab} darkMode={darkMode} />
+      <Footer 
+        setActiveTab={handleNavigate} 
+        setSelectedCategory={setSelectedCategory}
+        darkMode={darkMode} 
+      />
     </div>
   );
 }

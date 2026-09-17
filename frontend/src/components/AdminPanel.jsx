@@ -55,12 +55,9 @@ const categoriesList = [
 export default function AdminPanel({ schemes = [], setSchemes, user, setUser, darkMode }) {
   const [adminTab, setAdminTab] = useState('analytics');
 
-  // Admin Login & Register states (for non-admin users)
-  const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
+  // Admin Login states
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
-  const [adminName, setAdminName] = useState('');
-  const [adminSecretKey, setAdminSecretKey] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
@@ -181,34 +178,7 @@ export default function AdminPanel({ schemes = [], setSchemes, user, setUser, da
     }
   };
 
-  // Toggle role between admin and user
-  const handleToggleRole = async (userId, userName, currentRole) => {
-    setActionLoading(userId);
-    setUserMsg({ type: '', text: '' });
-    try {
-      const token = localStorage.getItem('token');
-      const headers = {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
-      };
-      const res = await fetch(`${API_BASE}/api/auth/users/${userId}/toggle-role`, {
-        method: 'PUT',
-        headers
-      });
-      const data = await res.json();
-      if (res.ok) {
-        const newRole = currentRole === 'admin' ? 'user' : 'admin';
-        setUserMsg({ type: 'success', text: `Role updated for ${userName} to ${newRole.toUpperCase()}` });
-        setUsers(prev => prev.map(u => (u._id === userId || u.id === userId) ? { ...u, role: newRole, adminStatus: newRole === 'admin' ? 'approved' : 'none' } : u));
-      } else {
-        throw new Error(data.message || 'Failed to update user role');
-      }
-    } catch (err) {
-      setUserMsg({ type: 'error', text: err.message });
-    } finally {
-      setActionLoading(null);
-    }
-  };
+
 
   // Delete user
   const handleDeleteUser = async (userId, userName) => {
@@ -233,7 +203,7 @@ export default function AdminPanel({ schemes = [], setSchemes, user, setUser, da
     }
   };
 
-  // Handle Admin Authentication with bulletproof error handling & fallback
+  // Handle Admin Authentication strictly for authorized administrator
   const handleAdminAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError('');
@@ -241,122 +211,62 @@ export default function AdminPanel({ schemes = [], setSchemes, user, setUser, da
     setAuthLoading(true);
 
     try {
-      if (authMode === 'login') {
-        let res = null;
-        let data = null;
+      const cleanEmail = adminEmail.trim().toLowerCase();
 
-        // Step 1: Try dedicated /api/auth/admin-login endpoint
+      // Strict client-side check: only authorized admin email
+      if (cleanEmail !== 'ghosh@gmail.com') {
+        throw new Error('Access denied. Only the authorized administrator (ghosh@gmail.com) can access this portal.');
+      }
+
+      let res = null;
+      let data = null;
+
+      try {
+        res = await fetch(`${API_BASE}/api/auth/admin-login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: cleanEmail, password: adminPassword })
+        });
+        const text = await res.text();
         try {
-          res = await fetch(`${API_BASE}/api/auth/admin-login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: adminEmail.trim(), password: adminPassword })
-          });
-          const text = await res.text();
-          try {
-            data = JSON.parse(text);
-          } catch {
-            data = null;
-          }
+          data = JSON.parse(text);
         } catch {
-          res = null;
           data = null;
         }
-
-        // Step 2: Fallback to standard /api/auth/login if /admin-login returned 404 or HTML
-        if (!res || !res.ok || !data || !data.token) {
-          try {
-            res = await fetch(`${API_BASE}/api/auth/login`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: adminEmail.trim(), password: adminPassword })
-            });
-            const text = await res.text();
-            try {
-              data = JSON.parse(text);
-            } catch {
-              data = null;
-            }
-          } catch {
-            // network error
-          }
-        }
-
-        // Step 3: Check if authentication succeeded with backend
-        if (res && res.ok && data && data.token) {
-          localStorage.setItem('token', data.token);
-          const userData = {
-            fullName: data.user?.name || adminEmail.split('@')[0] || 'System Administrator',
-            email: data.user?.email || adminEmail,
-            role: 'admin'
-          };
-          localStorage.setItem('user', JSON.stringify(userData));
-          if (setUser) setUser(userData);
-          setAuthSuccess('Welcome Administrator! Access granted.');
-          return;
-        }
-
-        // Step 4: Fallback for default demo admin (admin@schemesaathi.com / admin123)
-        if (adminEmail.trim().toLowerCase() === 'admin@schemesaathi.com' && adminPassword === 'admin123') {
-          const demoUser = {
-            fullName: 'System Administrator',
-            email: 'admin@schemesaathi.com',
-            role: 'admin'
-          };
-          localStorage.setItem('token', 'admin_session_token_' + Date.now());
-          localStorage.setItem('user', JSON.stringify(demoUser));
-          if (setUser) setUser(demoUser);
-          setAuthSuccess('Welcome Administrator! Admin session activated.');
-          return;
-        }
-
-        throw new Error((data && (data.message || data.error)) || 'Invalid administrator credentials. Please check your email and password.');
-      } else {
-        // Admin Register with Secret Key
-        const expectedSecret = 'schemesaathi_admin_2026';
-        if (adminSecretKey.trim() !== expectedSecret) {
-          throw new Error('Invalid Admin Secret Passkey.');
-        }
-
-        let res = null;
-        try {
-          res = await fetch(`${API_BASE}/api/auth/admin-register`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: adminName.trim(),
-              email: adminEmail.trim(),
-              password: adminPassword,
-              secretKey: adminSecretKey.trim()
-            })
-          });
-          await res.text();
-        } catch {
-          res = null;
-        }
-
-        // Fallback register
-        if (!res || !res.ok) {
-          try {
-            res = await fetch(`${API_BASE}/api/auth/register`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                name: adminName.trim(),
-                email: adminEmail.trim(),
-                password: adminPassword
-              })
-            });
-            await res.text();
-          } catch {
-            // ignore
-          }
-        }
-
-        setAuthSuccess('Admin account created successfully! Please log in.');
-        setAuthMode('login');
-        setAdminPassword('');
+      } catch {
+        res = null;
+        data = null;
       }
+
+      // Check if authentication succeeded with backend and user is indeed admin
+      if (res && res.ok && data && data.token && data.user?.role === 'admin') {
+        localStorage.setItem('token', data.token);
+        const userData = {
+          fullName: data.user?.name || 'Sanjay Ghosh (Admin)',
+          email: data.user?.email || cleanEmail,
+          role: 'admin'
+        };
+        localStorage.setItem('user', JSON.stringify(userData));
+        if (setUser) setUser(userData);
+        setAuthSuccess('Welcome Administrator! Access granted.');
+        return;
+      }
+
+      // Offline fallback strictly for ghosh@gmail.com / Sanjay@9382 if backend network is unreachable
+      if ((!res || !res.ok) && cleanEmail === 'ghosh@gmail.com' && adminPassword === 'Sanjay@9382') {
+        const demoUser = {
+          fullName: 'Sanjay Ghosh (Admin)',
+          email: 'ghosh@gmail.com',
+          role: 'admin'
+        };
+        localStorage.setItem('token', 'admin_session_token_' + Date.now());
+        localStorage.setItem('user', JSON.stringify(demoUser));
+        if (setUser) setUser(demoUser);
+        setAuthSuccess('Welcome Administrator! Admin session activated.');
+        return;
+      }
+
+      throw new Error((data && (data.message || data.error)) || 'Invalid administrator credentials. Access denied.');
     } catch (err) {
       setAuthError(err.message);
     } finally {
@@ -608,9 +518,13 @@ export default function AdminPanel({ schemes = [], setSchemes, user, setUser, da
     ];
 
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch(`${API_BASE}/api/schemes/bulk`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: JSON.stringify(sampleSchemes)
       });
       const text = await res.text();
@@ -655,34 +569,6 @@ export default function AdminPanel({ schemes = [], setSchemes, user, setUser, da
             </p>
           </div>
 
-          {/* Tab Switcher: Login / Secret Key Register */}
-          <div className={`grid grid-cols-2 p-1 rounded-xl mb-6 border ${
-            darkMode ? 'bg-gray-900/80 border-gray-800' : 'bg-gray-100 border-gray-200'
-          }`}>
-            <button
-              type="button"
-              onClick={() => { setAuthMode('login'); setAuthError(''); setAuthSuccess(''); }}
-              className={`py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
-                authMode === 'login' 
-                  ? 'bg-orange-500 text-white shadow-md' 
-                  : (darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900')
-              }`}
-            >
-              Admin Login
-            </button>
-            <button
-              type="button"
-              onClick={() => { setAuthMode('register'); setAuthError(''); setAuthSuccess(''); }}
-              className={`py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
-                authMode === 'register' 
-                  ? 'bg-orange-500 text-white shadow-md' 
-                  : (darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900')
-              }`}
-            >
-              Register Admin
-            </button>
-          </div>
-
           {authError && (
             <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 text-red-400 text-xs rounded-xl flex items-center gap-2">
               <span>⚠️</span>
@@ -698,27 +584,11 @@ export default function AdminPanel({ schemes = [], setSchemes, user, setUser, da
           )}
 
           <form onSubmit={handleAdminAuthSubmit} className="space-y-4">
-            {authMode === 'register' && (
-              <div>
-                <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1.5">Admin Full Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Sanjay Ghosh"
-                  value={adminName}
-                  onChange={(e) => setAdminName(e.target.value)}
-                  required
-                  className={`w-full p-3.5 rounded-xl border text-xs focus:outline-none focus:border-orange-500 ${
-                    darkMode ? 'bg-gray-900 border-gray-800 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'
-                  }`}
-                />
-              </div>
-            )}
-
             <div>
               <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1.5">Admin Email</label>
               <input
                 type="email"
-                placeholder="admin@schemesaathi.com"
+                placeholder="ghosh@gmail.com"
                 value={adminEmail}
                 onChange={(e) => setAdminEmail(e.target.value)}
                 required
@@ -756,39 +626,26 @@ export default function AdminPanel({ schemes = [], setSchemes, user, setUser, da
               </div>
             </div>
 
-            {authMode === 'register' && (
-              <div>
-                <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1.5">Admin Secret Key</label>
-                <input
-                  type="password"
-                  placeholder="Enter Admin Secret Passkey"
-                  value={adminSecretKey}
-                  onChange={(e) => setAdminSecretKey(e.target.value)}
-                  required
-                  className={`w-full p-3.5 rounded-xl border text-xs focus:outline-none focus:border-orange-500 ${
-                    darkMode ? 'bg-gray-900 border-gray-800 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'
-                  }`}
-                />
-                <p className="text-[10px] text-gray-500 mt-1">Default Secret Key: <span className="font-mono text-orange-400">schemesaathi_admin_2026</span></p>
-              </div>
-            )}
-
             <button
               type="submit"
               disabled={authLoading}
               className="w-full py-4 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-orange-600/30 uppercase tracking-wider cursor-pointer"
             >
-              {authLoading ? 'Verifying with MongoDB...' : (authMode === 'login' ? 'Unlock Admin Dashboard →' : 'Create Admin Account →')}
+              {authLoading ? 'Verifying with MongoDB...' : 'Unlock Admin Dashboard →'}
             </button>
           </form>
 
-          {/* Quick Demo Credentials Tip */}
-          <div className={`mt-6 p-3.5 rounded-xl border text-xs ${
+          {/* Secure Administrator Restriction Notice */}
+          <div className={`mt-6 p-4 rounded-2xl border text-xs text-center ${
             darkMode ? 'bg-gray-900/60 border-gray-800/80 text-gray-400' : 'bg-gray-50 border-gray-200 text-gray-600'
           }`}>
-            <p className="font-semibold text-orange-400 mb-1">🔑 Default Administrator Credentials:</p>
-            <p className="text-[11px] font-mono">Email: <span className={darkMode ? 'text-white' : 'text-gray-900'}>admin@schemesaathi.com</span></p>
-            <p className="text-[11px] font-mono">Password: <span className={darkMode ? 'text-white' : 'text-gray-900'}>admin123</span></p>
+            <div className="flex items-center justify-center gap-1.5 mb-1 font-bold text-orange-400">
+              <span>🔒</span>
+              <span>Restricted Administrator Access</span>
+            </div>
+            <p className="text-[11px] leading-relaxed">
+              This area is restricted solely to the designated system administrator (<span className="text-orange-400 font-mono font-bold">ghosh@gmail.com</span>). Citizen accounts cannot access administrative controls.
+            </p>
           </div>
         </div>
       </div>
@@ -1307,10 +1164,7 @@ export default function AdminPanel({ schemes = [], setSchemes, user, setUser, da
                 </div>
 
                 {users.map((u) => {
-                  const isSuper = u.email?.toLowerCase().trim() === 'admin@schemesaathi.com';
-                  const isAdminRole = u.role === 'admin';
-                  const isPending = u.adminStatus === 'pending';
-                  const isRejected = u.adminStatus === 'rejected';
+                  const isSuper = u.email?.toLowerCase().trim() === 'ghosh@gmail.com';
 
                   return (
                     <div 
@@ -1323,9 +1177,7 @@ export default function AdminPanel({ schemes = [], setSchemes, user, setUser, da
                         <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-sm shadow-md ${
                           isSuper 
                             ? 'bg-gradient-to-tr from-amber-400 to-orange-500 text-gray-950 font-black' 
-                            : isAdminRole 
-                              ? 'bg-gradient-to-tr from-orange-500 to-red-500 text-white' 
-                              : 'bg-gradient-to-tr from-blue-500 to-indigo-500 text-white'
+                            : 'bg-gradient-to-tr from-blue-500 to-indigo-500 text-white'
                         }`}>
                           {u.name?.charAt(0).toUpperCase() || 'U'}
                         </div>
@@ -1337,18 +1189,6 @@ export default function AdminPanel({ schemes = [], setSchemes, user, setUser, da
                             {isSuper ? (
                               <span className="text-[10px] px-2.5 py-0.5 rounded-full font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40">
                                 👑 Super Admin
-                              </span>
-                            ) : isAdminRole ? (
-                              <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-orange-500/20 text-orange-400 border border-orange-500/40">
-                                🛡️ Administrator
-                              </span>
-                            ) : isPending ? (
-                              <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">
-                                ⏳ Pending Approval
-                              </span>
-                            ) : isRejected ? (
-                              <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-red-500/20 text-red-400 border border-red-500/40">
-                                ❌ Admin Rejected
                               </span>
                             ) : (
                               <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-blue-500/20 text-blue-400 border border-blue-500/40">
@@ -1368,54 +1208,16 @@ export default function AdminPanel({ schemes = [], setSchemes, user, setUser, da
                         )}
 
                         {!isSuper && (
-                          <>
-                            {/* If pending approval, show Approve & Reject buttons */}
-                            {isPending ? (
-                              <>
-                                <button
-                                  type="button"
-                                  disabled={actionLoading === (u._id || u.id)}
-                                  onClick={() => handleApproveAdmin(u._id || u.id, u.name)}
-                                  className="text-[11px] px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition shadow cursor-pointer"
-                                >
-                                  Approve Admin
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={actionLoading === (u._id || u.id)}
-                                  onClick={() => handleRejectAdmin(u._id || u.id, u.name)}
-                                  className="text-[11px] px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl font-bold transition cursor-pointer"
-                                >
-                                  Reject
-                                </button>
-                              </>
-                            ) : (
-                              /* Toggle Admin privilege button */
-                              <button
-                                type="button"
-                                disabled={actionLoading === (u._id || u.id)}
-                                onClick={() => handleToggleRole(u._id || u.id, u.name, u.role)}
-                                className={`text-[11px] px-3 py-1.5 rounded-xl font-bold border transition cursor-pointer ${
-                                  isAdminRole
-                                    ? 'bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 border-orange-500/30'
-                                    : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                                }`}
-                              >
-                                {isAdminRole ? 'Revoke Admin' : 'Grant Admin'}
-                              </button>
-                            )}
-
-                            {/* Delete User Button */}
-                            <button
-                              type="button"
-                              disabled={actionLoading === (u._id || u.id)}
-                              onClick={() => handleDeleteUser(u._id || u.id, u.name)}
-                              className="text-[11px] p-1.5 px-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl font-bold transition cursor-pointer"
-                              title="Delete user from database"
-                            >
-                              🗑️
-                            </button>
-                          </>
+                          <button
+                            type="button"
+                            disabled={actionLoading === (u._id || u.id)}
+                            onClick={() => handleDeleteUser(u._id || u.id, u.name)}
+                            className="text-[11px] px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5"
+                            title="Delete user account from database"
+                          >
+                            <span>🗑️</span>
+                            <span>Delete Account</span>
+                          </button>
                         )}
                       </div>
                     </div>
